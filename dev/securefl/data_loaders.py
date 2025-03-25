@@ -34,8 +34,8 @@ def load_data(dataset, seed):
     np.random.seed(seed)
 
     if dataset == 'HAR':
-        train_dir = os.path.join("/app/flwr", "datasets", "HAR", "train", "")
-        test_dir = os.path.join("/app/flwr", "datasets", "HAR", "test", "")
+        train_dir = os.path.join(".", "datasets", "HAR", "train", "")
+        test_dir = os.path.join(".", "datasets", "HAR", "test", "")
 
         file = open(train_dir + "X_train.txt", 'r')
         X_train = np.array([elem for elem in [row.replace('  ', ' ').strip().split(' ') for row in file]], dtype=np.float32)
