@@ -8,7 +8,7 @@ framework: [torch, torchvision]
 
 ```shell
 dev
-├── pytorchexample
+├── securefl
 │   ├── __init__.py
 │   ├── client_app.py   # Defines your ClientApp
 │   ├── server_app.py   # Defines your ServerApp
@@ -19,7 +19,7 @@ dev
 
 ### Install dependencies and project
 
-Install the dependencies defined in `pyproject.toml` as well as the `pytorchexample` package.
+Install the dependencies defined in `pyproject.toml` as well as the `securefl` package.
 
 ```bash
 pip install -e .

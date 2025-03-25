@@ -1,4 +1,4 @@
-"""pytorchexample: A Flower / PyTorch app."""
+"""securefl: A Flower / PyTorch app."""
 
 from collections import OrderedDict
 
