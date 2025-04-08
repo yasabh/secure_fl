@@ -162,6 +162,8 @@ app = ServerApp()
 
 @app.main()
 def main(grid: Grid, context: Context) -> None:
+    num_clients = len(grid.get_node_ids())
+    
     seed = context.run_config["seed"]
     num_rounds = context.run_config["num-server-rounds"]
     fraction_evaluate = context.run_config["fraction-evaluate"]
@@ -178,7 +180,7 @@ def main(grid: Grid, context: Context) -> None:
         niter=context.run_config["num-server-rounds"],
         learning_rate=context.run_config["learning-rate"],
         chunk_size=context.run_config["chunk-size"],
-        num_clients=context.run_config["num-clients"],
+        num_clients=num_clients,
         byz=get_byz(context.run_config["byz"]),
         num_byz=context.run_config["num-byz"],
         threads=4,

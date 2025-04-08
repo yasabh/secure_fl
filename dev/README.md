@@ -8,31 +8,25 @@ framework: [Flower]
 
 This repository provides a detailed example of using **Flower's SecAgg+ protocol** integrated with the **Semi2k MPC** protocol to enhance privacy guarantees during federated learning using the **HAR (Human Activity Recognition)** dataset. It reflects the current state of an advanced FL system based on our research and implementation.
 
-The following steps describe how to use Flower's built-in Secure Aggregation components. This example demonstrates how to apply `SecAgg+` to the same federated learning workload as in the [quickstart-pytorch](https://github.com/adap/flower/tree/main/examples/quickstart-pytorch) example. The `ServerApp` uses the [`SecAggPlusWorkflow`](https://flower.ai/docs/framework/ref-api/flwr.server.workflow.SecAggPlusWorkflow.html#secaggplusworkflow) while `ClientApp` uses the [`secaggplus_mod`](https://flower.ai/docs/framework/ref-api/flwr.client.mod.secaggplus_mod.html#flwr.client.mod.secaggplus_mod). To introduce the various steps involved in `SecAgg+`, this example introduces as a sub-class of `SecAggPlusWorkflow` the `SecAggPlusWorkflowWithLogs`. It is enabled by default, but you can disable it (see later in this readme).
+The following steps describe how to use Flower's built-in Secure Aggregation components. This documentation shows how to apply `SecAgg+` to the same federated learning workload as in the [quickstart-pytorch](https://github.com/adap/flower/tree/main/examples/quickstart-pytorch) example. The `ServerApp` uses the [`SecAggPlusWorkflow`](https://flower.ai/docs/framework/ref-api/flwr.server.workflow.SecAggPlusWorkflow.html#secaggplusworkflow) while `ClientApp` uses the [`secaggplus_mod`](https://flower.ai/docs/framework/ref-api/flwr.client.mod.secaggplus_mod.html#flwr.client.mod.secaggplus_mod). To introduce the various steps involved in `SecAgg+`, this example introduces as a sub-class of `SecAggPlusWorkflow` the `SecAggPlusWorkflowWithLogs`. It is enabled by default, but you can disable it (see later in this readme).
 
 ## Project Motivation and Scope
 This project demonstrates how to improve data privacy in federated learning by integrating Flower's SecAgg+ protocol with Semi2k MPC while using the HAR dataset. The goal is to protect individual client updates and securely handle client dropouts during training. If some clients drop out, we pad their missing gradients with zeros and then scale the aggregate update to adjust for the missing data, ensuring the global model remains accurate.
 
 ## Practical Notes
-- Dropouts and Scaling:
-When fewer clients contribute than expected, the missing gradients are replaced with zeros. Since averaging with zeros dilutes the update, we scale the aggregate by the ratio of expected to active clients. This adjustment prevents training accuracy from stagnating due to dropouts.
+- *Dropouts and Scaling*: When fewer clients contribute than expected, the missing gradients are replaced with zeros. Since averaging with zeros dilutes the update, we scale the aggregate by the ratio of expected to active clients. This adjustment prevents training accuracy from stagnating due to dropouts.
 
-- *Computation Cost*
-Secure aggregation with MPC is computationally expensive. For running simulations effectively, it's recommended to use a dedicated VM or a GPU cluster.
+- *Computation Cost*: Secure aggregation with MPC is computationally expensive. For running simulations effectively, it's recommended to use a dedicated VM or a GPU cluster.
 
-- *Logging*
-Log the number of masked/unmasked vectors and monitor the count of active versus dropped clients each round to diagnose any impact on model performance.
+- *Logging*: Log the number of masked/unmasked vectors and monitor the count of active versus dropped clients each round to diagnose any impact on model performance.
 
 ## Key Features
 
-- *SecAgg+ Masking*
-Clients mask their updates using additive secret sharing, where random masks are distributed among peers. These masks hide individual updates, and only when enough shares are combined (meeting the reconstruction threshold) can the missing mask be reconstructed.
+- *SecAgg+ Masking*:Clients mask their updates using additive secret sharing, where random masks are distributed among peers. These masks hide individual updates, and only when enough shares are combined (meeting the reconstruction threshold) can the missing mask be reconstructed.
 
-- *Dropout Tolerance*
-If a client drops out, its missing mask is reconstructed from other clients’ secret shares (provided the number of shares meets or exceeds the threshold). This allows secure, uninterrupted aggregation even when not all clients participate.
+- *Dropout Tolerance*: If a client drops out, its missing mask is reconstructed from other clients’ secret shares (provided the number of shares meets or exceeds the threshold). This allows secure, uninterrupted aggregation even when not all clients participate.
 
-- *Secure MPC Aggregation (Semi2k)*
-After unmasking, Semi2k MPC securely aggregates the model updates. This extra layer ensures that the computation of the global model is performed without exposing any intermediate values, reinforcing the privacy guarantees.
+- *Secure MPC Aggregation (Semi2k)*: After unmasking, Semi2k MPC securely aggregates the model updates. This extra layer ensures that the computation of the global model is performed without exposing any intermediate values, reinforcing the privacy guarantees.
 
 ---
 
@@ -44,54 +38,56 @@ git clone https://github.com/yasabh/secure_fl.git && cd secure_fl/dev
 ```
 
 ### 2. Install dependencies
+The project has been tested successfully under **Python 3.10.16**. Then, install the *required dependencies* as defined in the `pyproject.toml`:
 ```bash
 pip install -e .
 ```
 
 ## Running the Project
-You can run the system in Simulation Mode for development or locally distributed mode for testing across multiple processes.
-```bash
-flwr run .
-```
-You may override parameters:
-```bash
-flwr run . --run-config "num-server-rounds=5 learning-rate=0.25 batch-size=128"
-```
 `pyproject.toml` run config example:
 ```toml
 [tool.flwr.app.config]
-num-clients = 30
-num-server-rounds = 5
-fraction-evaluate = 0.3
-local-epochs = 1
-learning-rate = 0.25
-batch-size = 128
-seed = 1
-bias = 0.5
-p = 0.1
-server-pc = 100
+num-clients = 30              # Total number of clients (or participants) in the federated learning simulation.
+num-server-rounds = 5         # Number of training rounds the server will run.
+fraction-evaluate = 0.3       # Fraction of clients used for evaluation each round.
+local-epochs = 1              # Number of epochs each client trains locally before sending updates.
+learning-rate = 0.25          # Learning rate used for local client training.
+batch-size = 128              # Mini-batch size used during client training.
+seed = 1                      # Seed for random number generators to ensure reproducibility.
+bias = 0.5                    # Bias parameter for dataset partitioning (controls non-iid distribution).
+p = 0.1                       # Probability parameter used in the data partitioning strategy.
+server-pc = 100               # Number of data samples (or a parameter related to the server dataset).
 
-# SecAgg+
-num-shares = 3
-reconstruction-threshold = 2
-max-weight = 9000
-num-dropped = 2
-timeout = 120
+# SecAgg+ parameters: These settings control the secure aggregation protocol.
+num-shares = 3                # Number of secret shares each client generates from its masking value.
+reconstruction-threshold = 2  # Minimum number of shares required to reconstruct a missing mask.
+max-weight = 9000             # A parameter (e.g., clipping or scaling) used to limit the contribution of any single client.
+num-dropped = 2               # Maximum number of client dropouts tolerated per round.
+timeout = 120                 # Time limit (in seconds) for the aggregation process to complete.
 
-# MPC settings
-mpc-enabled = false
-protocol = "semi2k"
-byz = "label_flipping_attack"
-num-byz = 0
-port = 14000
-chunk-size = 500
-num-parties = 3
+# MPC (Semi2k) settings: These parameters define how the MPC backend is configured.
+mpc-enabled = false           # Flag to enable or disable MPC; set to true to use MPC aggregation.
+protocol = "semi2k"           # The MPC protocol to use (e.g., semi2k).
+byz = "label_flipping_attack" # Specifies an adversarial attack mode (if any) for testing robustness.
+num-byz = 0                   # Number of malicious (Byzantine) clients to simulate.
+port = 14000                  # Base port used for MPC communications.
+chunk-size = 500              # The maximum number of parameter values sent at one time (affects communication efficiency).
+num-parties = 3               # Number of computation parties required by the MPC protocol.
 
 [tool.flwr.federations]
-default = "local-simulation"
+default = "local-simulation"  # Defines the default federation configuration.
 
 [tool.flwr.federations.local-simulation]
-options.num-supernodes = 30
+options.num-supernodes = 30   # For simulation, this sets the number of supernodes (clients) to 30.
+
+```
+We can run the system in simulation mode for development or locally distributed mode for testing across multiple processes.
+```bash
+flwr run .
+```
+We may override parameters:
+```bash
+flwr run . --run-config "num-server-rounds=5 learning-rate=0.25 batch-size=128"
 ```
 
 ## Directory Structure

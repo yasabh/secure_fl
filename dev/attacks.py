@@ -1,3 +1,6 @@
+# This script is obtained from: https://github.com/encryptogroup/SAFEFL/blob/main/attacks.py
+# 
+
 import math
 
 import torch

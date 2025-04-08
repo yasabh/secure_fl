@@ -1,3 +1,6 @@
+# This script is obtained from: https://github.com/encryptogroup/SAFEFL/blob/main/data_loaders.py
+# 
+
 from __future__ import print_function
 
 import numpy as np
