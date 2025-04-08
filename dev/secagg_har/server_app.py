@@ -59,6 +59,9 @@ class LoggingFedAvg(FedAvg):
         self.accuracy_history = []
         self.loss_history = []
         self.net.to(self.device)
+
+        if self.mpc_enabled:
+            mpc_setup.run()
     
     def aggregate_fit(self, rnd, results, failures):
         if self.mpc_enabled:
@@ -159,7 +162,6 @@ app = ServerApp()
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     num_clients = len(grid.get_node_ids())
-    mpc_enabled = context.run_config["mpc-enabled"]
     
     seed = context.run_config["seed"]
     num_rounds = context.run_config["num-server-rounds"]
@@ -185,14 +187,11 @@ def main(grid: Grid, context: Context) -> None:
         always_compile=False,
     )
 
-    if mpc_enabled:
-        mpc_setup.run()
-
     # Define strategy using our LoggingFedAvg
     strategy = LoggingFedAvg(
         net=net,
         num_rounds=num_rounds,
-        mpc_enabled=mpc_enabled,
+        mpc_enabled=context.run_config["mpc-enabled"],
         mpc_setup=mpc_setup,
         seed=seed,
         fraction_fit=1.0,

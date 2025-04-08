@@ -1,4 +1,5 @@
 import os
+import time
 import torch
 import subprocess
 import attacks
@@ -81,13 +82,14 @@ class MPC:
 
     def run(self):
         self.compile()
-        os.chdir("mpspdz")
 
+        os.chdir("mpspdz")
         print("Starting Computation Parties")
         # start computation servers using a child process to run in parallel
         self.server_process = subprocess.Popen(["./run_aggregation.sh", self.script, self.full_filename, str(self.num_parties)])
-
         os.chdir("..")
+
+        time.sleep(3)
 
     def wait(self):
         self.server_process.wait()

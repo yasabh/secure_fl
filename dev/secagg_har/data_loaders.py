@@ -35,6 +35,7 @@ def load_data(dataset="HAR", seed=1):
     seed: seed for randomness
     """
     np.random.seed(seed)
+    # print('load_data', os.getcwd())
 
     if dataset == 'HAR':
         train_dir = os.path.join(".", "datasets", "HAR", "train", "")
