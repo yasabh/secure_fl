@@ -19,7 +19,6 @@ class MPC:
         self.always_compile = always_compile
         self.script, self.num_parties = self.get_protocol(protocol, num_parties)
         self.server_process = None
-        self.device = None
 
         if aggregation == "fedavg":
             self.filename_server = "mpc_fedavg_server"
@@ -32,7 +31,6 @@ class MPC:
 
         self.num_params = torch.cat([xx.reshape((-1, 1)) for xx in self.net.parameters()], dim=0).size()[0]
         self.full_filename = f'{self.filename_server}-{self.port}-{self.num_params}-{self.num_clients}-{self.niter}-{self.chunk_size}-{self.threads}-{self.parallels}'
-        # self.compile()
 
     def get_protocol(self, protocol, players):
         """
@@ -81,8 +79,8 @@ class MPC:
 
         os.chdir("..")
 
-    def run(self, device):
-        self.device = device
+    def run(self):
+        self.compile()
         os.chdir("mpspdz")
 
         print("Starting Computation Parties")
@@ -105,7 +103,7 @@ class MPC:
         element_size = combined_tensor.element_size()  # in bytes
         return total_elements * element_size
 
-    def aggregate(self, gradients):
+    def aggregate(self, device, gradients):
         """
         Secure aggregation using MP-SPDZ.
         gradients: list of gradients (each is a list of tensors
@@ -116,7 +114,7 @@ class MPC:
         param_list = [torch.cat([xx.reshape((-1, 1)) for xx in x], dim=0) for x in gradients]
         if self.byz is not None:
             # let the malicious clients (first f clients) perform the byzantine attack
-            param_list = self.byz(param_list, self.net, self.learning_rate, self.num_byz, self.device)
+            param_list = self.byz(param_list, self.net, self.learning_rate, self.num_byz, device)
 
         n = len(param_list)
         param_num = sum(param.numel() for param in self.net.parameters())
@@ -126,7 +124,7 @@ class MPC:
         output = mpc_client.client(0, self.num_parties, self.port, param_num, n, self.chunk_size, param_list_python, precision=12)
         os.chdir("..")
 
-        global_update = torch.tensor(output).to(self.device)  # convert python list to tensor
+        global_update = torch.tensor(output).to(device)  # convert python list to tensor
 
         # update global model
         idx = 0

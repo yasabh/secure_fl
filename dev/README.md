@@ -32,15 +32,23 @@ This project demonstrates how to improve data privacy in federated learning by i
 
 ## Set up the project
 
-### 1. Clone the project
+### 1. Create Python virtual env
+The project has been tested successfully under **Python 3.10.16**.
 ```bash
-git clone https://github.com/yasabh/secure_fl.git && cd secure_fl/dev
+python3 -m venv flenv
+source flenv/bin/activate
 ```
 
-### 2. Install dependencies
-The project has been tested successfully under **Python 3.10.16**. Then, install the *required dependencies* as defined in the `pyproject.toml`:
+### 2. Clone the project
 ```bash
-pip install -e .
+git clone https://github.com/yasabh/secure_fl.git
+cd secure_fl/dev
+```
+
+### 3. Install dependencies
+Install the *required dependencies* as defined in the `pyproject.toml`:
+```bash
+pip3 install -e .
 ```
 
 ## Running the Project

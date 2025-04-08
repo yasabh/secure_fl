@@ -59,10 +59,6 @@ class LoggingFedAvg(FedAvg):
         self.accuracy_history = []
         self.loss_history = []
         self.net.to(self.device)
-
-        if self.mpc_enabled:
-            self.mpc_setup.compile()
-            self.mpc_setup.run(self.device)
     
     def aggregate_fit(self, rnd, results, failures):
         if self.mpc_enabled:
@@ -90,7 +86,7 @@ class LoggingFedAvg(FedAvg):
             # Call your mpspdz_aggregation function to securely aggregate updates
             # This function should update the model 'net' in place.
             with torch.no_grad():
-                self.mpc_setup.aggregate(gradients=gradients)
+                self.mpc_setup.aggregate(self.device, gradients)
             
             # Scale the aggregated update by the ratio of expected to active clients
             scaling = num_expected_clients / num_active_clients
@@ -163,6 +159,7 @@ app = ServerApp()
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     num_clients = len(grid.get_node_ids())
+    mpc_enabled = context.run_config["mpc-enabled"]
     
     seed = context.run_config["seed"]
     num_rounds = context.run_config["num-server-rounds"]
@@ -188,11 +185,14 @@ def main(grid: Grid, context: Context) -> None:
         always_compile=False,
     )
 
+    if mpc_enabled:
+        mpc_setup.run()
+
     # Define strategy using our LoggingFedAvg
     strategy = LoggingFedAvg(
         net=net,
         num_rounds=num_rounds,
-        mpc_enabled=context.run_config["mpc-enabled"],
+        mpc_enabled=mpc_enabled,
         mpc_setup=mpc_setup,
         seed=seed,
         fraction_fit=1.0,
