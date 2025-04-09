@@ -7,20 +7,7 @@ from mpspdz.ExternalIO import mpc_client
 
 class MPC:
 
-    def __init__(self, net, protocol, aggregation, num_parties, port, niter, learning_rate, chunk_size, num_clients, byz, num_byz, threads, parallels, always_compile):
-        self.net = net
-        self.port = port
-        self.niter = niter
-        self.learning_rate = learning_rate
-        self.chunk_size = chunk_size
-        self.byz = byz
-        self.num_byz = num_byz
-        self.threads = threads
-        self.parallels = parallels
-        self.always_compile = always_compile
-        self.script, self.num_parties = self.get_protocol(protocol, num_parties)
-        self.server_process = None
-
+    def __init__(self, protocol, aggregation, num_params, num_parties, port, niter, learning_rate, chunk_size, num_clients, byz, num_byz, threads, parallels, always_compile):
         if aggregation == "fedavg":
             self.filename_server = "mpc_fedavg_server"
             self.num_clients = num_clients
@@ -30,7 +17,20 @@ class MPC:
         else:
             raise NotImplementedError
 
-        self.num_params = torch.cat([xx.reshape((-1, 1)) for xx in self.net.parameters()], dim=0).size()[0]
+        self.num_params = num_params
+        self.script, self.num_parties = self.get_protocol(protocol, num_parties)
+        self.server_process = None
+        
+        self.port = port
+        self.niter = niter
+        self.learning_rate = learning_rate
+        self.chunk_size = chunk_size
+        self.byz = byz
+        self.num_byz = num_byz
+        self.threads = threads
+        self.parallels = parallels
+        self.always_compile = always_compile
+
         self.full_filename = f'{self.filename_server}-{self.port}-{self.num_params}-{self.num_clients}-{self.niter}-{self.chunk_size}-{self.threads}-{self.parallels}'
 
     def get_protocol(self, protocol, players):
@@ -105,7 +105,7 @@ class MPC:
         element_size = combined_tensor.element_size()  # in bytes
         return total_elements * element_size
 
-    def aggregate(self, device, gradients):
+    def aggregate(self, net, device, gradients):
         """
         Secure aggregation using MP-SPDZ.
         gradients: list of gradients (each is a list of tensors
@@ -116,10 +116,10 @@ class MPC:
         param_list = [torch.cat([xx.reshape((-1, 1)) for xx in x], dim=0) for x in gradients]
         if self.byz is not None:
             # let the malicious clients (first f clients) perform the byzantine attack
-            param_list = self.byz(param_list, self.net, self.learning_rate, self.num_byz, device)
+            param_list = self.byz(param_list, net, self.learning_rate, self.num_byz, device)
 
         n = len(param_list)
-        param_num = sum(param.numel() for param in self.net.parameters())
+        param_num = sum(param.numel() for param in net.parameters())
         param_list_python = torch.reshape(torch.cat(param_list, dim=0), (-1,)).tolist()  # convert tensors to list
 
         os.chdir("mpspdz")
@@ -130,6 +130,6 @@ class MPC:
 
         # update global model
         idx = 0
-        for j, (param) in enumerate(self.net.parameters()):
+        for j, (param) in enumerate(net.parameters()):
             param.add_(global_update[idx:(idx + torch.numel(param))].reshape(tuple(param.size())), alpha=-self.learning_rate)
             idx += torch.numel(param)

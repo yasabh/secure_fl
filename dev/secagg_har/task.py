@@ -29,12 +29,14 @@ class Net(nn.Module):
     def forward(self, x):
         return self.lr(torch.flatten(x, start_dim=1))
 
-def make_net(seed=42):
+def make_net(device, seed=42):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
     net = Net()
+    net.to(device)
     net.apply(weight_init)
     return net
 

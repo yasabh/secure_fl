@@ -48,70 +48,62 @@ class LoggingFedAvg(FedAvg):
     
     def __init__(self, net, num_rounds: int, mpc_enabled: bool, mpc_setup: dict, seed: int, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._initial_parameters = kwargs.get("initial_parameters")
-        self.seed = seed
-        self.latest_parameters = None
         self.net = net
+        self.device = next(self.net.parameters()).device
         self.num_rounds = num_rounds
         self.mpc_enabled = mpc_enabled
         self.mpc_setup = mpc_setup
+        self.seed = seed
+        self.latest_parameters = kwargs.get("initial_parameters")
+        self.num_params = torch.cat([xx.reshape((-1, 1)) for xx in self.net.parameters()], dim=0).size()[0]
         self.accuracy_history = []
         self.loss_history = []
-        self.net.to(self.device)
 
         if self.mpc_enabled:
             mpc_setup.run()
     
     def aggregate_fit(self, rnd, results, failures):
-        if self.mpc_enabled:
-            if self.latest_parameters is not None:
-                set_weights(self.net, parameters_to_ndarrays(self.latest_parameters))
-            elif self._initial_parameters is not None:
-                set_weights(self.net, parameters_to_ndarrays(self._initial_parameters))
-            else:
-                raise ValueError("No initial parameters available for aggregation.")
-
-            gradients = extract_gradients(results)
-
-            num_expected_clients = self.mpc_setup.num_clients
-            num_active_clients = len(results)
-            num_missing_clients = num_expected_clients - num_active_clients
-
-            # Pad missing gradients with dummy (zero) gradients
-            if num_missing_clients > 0:
-                log(INFO, f"Padding with {num_missing_clients} dummy gradients")
-                # Assume all clients' gradients have the same structure as gradients[0]
-                dummy_gradient = [torch.zeros_like(tensor) for tensor in gradients[0]]
-                for _ in range(num_missing_clients):
-                    gradients.append(dummy_gradient)
-
-            # Call your mpspdz_aggregation function to securely aggregate updates
-            # This function should update the model 'net' in place.
-            with torch.no_grad():
-                self.mpc_setup.aggregate(self.device, gradients)
-            
-            # Scale the aggregated update by the ratio of expected to active clients
-            scaling = num_expected_clients / num_active_clients
-            new_weights = [w * scaling for w in get_weights(self.net)]
-
-            self.latest_parameters = ndarrays_to_parameters(new_weights)
-
-            # Convert new_weights and initial parameters to tensors
-            new_w = [w if isinstance(w, torch.Tensor) else torch.from_numpy(w).to(self.device)
-                    for w in new_weights]
-            init_w = [torch.from_numpy(p).to(self.device)
-                    for p in parameters_to_ndarrays(self._initial_parameters)]
-            if all(torch.equal(a, b) for a, b in zip(new_w, init_w)):
-                log(WARNING, "MPC aggregation may have failed or returned unchanged parameters.")
-
-            return self.latest_parameters, {}
-        else:
+        if not self.mpc_enabled:
             aggregated_result = super().aggregate_fit(rnd, results, failures)
             if aggregated_result is not None:
-                parameters, _ = aggregated_result
-                self.latest_parameters = parameters
+                self.latest_parameters, _ = aggregated_result
             return aggregated_result
+
+        set_weights(self.net, parameters_to_ndarrays(self.latest_parameters))
+
+        gradients = extract_gradients(results)
+        num_expected_clients = self.mpc_setup.num_clients
+        num_active_clients = len(results)
+        num_missing_clients = num_expected_clients - num_active_clients
+
+        # Pad missing gradients with dummy (zero) gradients
+        if num_missing_clients > 0:
+            log(INFO, f"Padding with {num_missing_clients} dummy gradients")
+            # Assume all clients' gradients have the same structure as gradients[0]
+            dummy_grad = [torch.zeros_like(tensor) for tensor in gradients[0]]
+            gradients.extend([dummy_grad] * num_missing)
+
+        # This function should update the model 'net' in place.
+        with torch.no_grad():
+            self.mpc_setup.aggregate(self.net, self.device, gradients)
+        
+        # Scale the aggregated update by the ratio of expected to active clients
+        weights = get_weights(self.net)
+        if num_missing_clients > 0:
+            scaling = num_expected_clients / num_active_clients
+            new_weights = [w * scaling for w in weights]
+
+        # Detect no change (MPC failure or degenerate case)
+        initial_weights = [torch.from_numpy(p).to(self.device)
+                        for p in parameters_to_ndarrays(self.latest_parameters)]
+        current_weights = [w if isinstance(w, torch.Tensor) else torch.from_numpy(w).to(self.device)
+                        for w in weights]
+
+        if all(torch.equal(w1, w2) for w1, w2 in zip(initial_weights, current_weights)):
+            log(WARNING, "MPC aggregation may have failed or produced no change.")
+
+        self.latest_parameters = ndarrays_to_parameters(new_weights)
+        return self.latest_parameters, {}
 
     def aggregate_evaluate(self, rnd: int, results, failures):
         aggregated_metrics = super().aggregate_evaluate(rnd, results, failures)
@@ -168,12 +160,14 @@ def main(grid: Grid, context: Context) -> None:
     fraction_evaluate = context.run_config["fraction-evaluate"]
 
     # Get initial parameters
-    net = make_net(seed=seed)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    net = make_net(device, seed=seed)
+    num_params = torch.cat([xx.reshape((-1, 1)) for xx in net.parameters()], dim=0).size()[0]
 
     mpc_setup = MPC(
-        net=net,
         protocol=context.run_config["protocol"],
         aggregation="fedavg",
+        num_params=num_params,
         num_parties=context.run_config["num-parties"],
         port=context.run_config["port"],
         niter=context.run_config["num-server-rounds"],
