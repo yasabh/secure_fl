@@ -48,6 +48,7 @@ cd secure_fl/dev
 ### 3. Install dependencies
 Install the *required dependencies* as defined in the `pyproject.toml`:
 ```bash
+bash mpc_install.sh
 pip3 install -e .
 ```
 

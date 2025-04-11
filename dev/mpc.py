@@ -119,17 +119,18 @@ class MPC:
             param_list = self.byz(param_list, net, self.learning_rate, self.num_byz, device)
 
         n = len(param_list)
-        param_num = sum(param.numel() for param in net.parameters())
         param_list_python = torch.reshape(torch.cat(param_list, dim=0), (-1,)).tolist()  # convert tensors to list
 
         os.chdir("mpspdz")
-        output = mpc_client.client(0, self.num_parties, self.port, param_num, n, self.chunk_size, param_list_python, precision=12)
+        output = mpc_client.client(0, self.num_parties, self.port, self.num_params, n, self.chunk_size, param_list_python, precision=12)
         os.chdir("..")
 
         global_update = torch.tensor(output).to(device)  # convert python list to tensor
 
         # update global model
-        idx = 0
-        for j, (param) in enumerate(net.parameters()):
-            param.add_(global_update[idx:(idx + torch.numel(param))].reshape(tuple(param.size())), alpha=-self.learning_rate)
-            idx += torch.numel(param)
+
+        with torch.no_grad():
+            idx = 0
+            for j, (param) in enumerate(net.parameters()):
+                param.add_(global_update[idx:(idx + torch.numel(param))].reshape(tuple(param.size())), alpha=-self.learning_rate)
+                idx += torch.numel(param)

@@ -41,7 +41,7 @@ reconstruction-threshold = 2
 max-weight = 9000
 
 # For testing
-num-dropped = 1
+num-dropped = 0
 timeout = 120
 
 # MPC config

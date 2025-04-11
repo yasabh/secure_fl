@@ -81,17 +81,16 @@ class LoggingFedAvg(FedAvg):
             log(INFO, f"Padding with {num_missing_clients} dummy gradients")
             # Assume all clients' gradients have the same structure as gradients[0]
             dummy_grad = [torch.zeros_like(tensor) for tensor in gradients[0]]
-            gradients.extend([dummy_grad] * num_missing)
+            gradients.extend([dummy_grad] * num_missing_clients)
 
         # This function should update the model 'net' in place.
-        with torch.no_grad():
-            self.mpc_setup.aggregate(self.net, self.device, gradients)
+        self.mpc_setup.aggregate(self.net, self.device, gradients)
         
         # Scale the aggregated update by the ratio of expected to active clients
         weights = get_weights(self.net)
         if num_missing_clients > 0:
             scaling = num_expected_clients / num_active_clients
-            new_weights = [w * scaling for w in weights]
+            weights = [w * scaling for w in weights]
 
         # Detect no change (MPC failure or degenerate case)
         initial_weights = [torch.from_numpy(p).to(self.device)
@@ -102,7 +101,7 @@ class LoggingFedAvg(FedAvg):
         if all(torch.equal(w1, w2) for w1, w2 in zip(initial_weights, current_weights)):
             log(WARNING, "MPC aggregation may have failed or produced no change.")
 
-        self.latest_parameters = ndarrays_to_parameters(new_weights)
+        self.latest_parameters = ndarrays_to_parameters(weights)
         return self.latest_parameters, {}
 
     def aggregate_evaluate(self, rnd: int, results, failures):
@@ -136,7 +135,7 @@ class LoggingFedAvg(FedAvg):
             self.mpc_setup.wait()
 
         # Fresh model
-        net_geval = make_net()
+        net_geval = make_net(self.device)
         
         set_weights(net_geval, parameters_to_ndarrays(self.latest_parameters))
 
